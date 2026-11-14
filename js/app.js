@@ -5,7 +5,7 @@ import { StlViewer, GROUP_COLORS } from "./viewer.js";
 import { makePassingExampleStl, makeFloatingExampleStl, makeTooSlowExampleStl } from "./samples.js";
 import { formatMinutes } from "./format.js";
 import { questionFor, compareChecks } from "./learning.js";
-import { fixAccepted } from "./fix.js";
+import { fixAccepted, badIds } from "./fix.js";
 
 const params = new URLSearchParams(window.location.search);
 const maxMinutes = Math.max(1, Math.min(600, Number(params.get("max")) || 30));
@@ -156,7 +156,7 @@ function runAnalysis(buffer, fileName, apply) {
       lastReport = msg;
       if (fixing) {
         const f = fixing; fixing = null;
-        const after = msg.results.filter((r) => r.status === "fail").map((r) => r.id);
+        const after = badIds(msg.results);
         if (!msg.fixedStl || !fixAccepted(f.before, after)) { fixNotice = { bad: true }; runAnalysis(currentBuffer, f.name); return; }
         fixNotice = { applied: msg.applied, stl: msg.fixedStl, name: f.name };
       }
@@ -380,7 +380,7 @@ function renderReport(rep, previous) {
       fixBtn = b;
       b.addEventListener("click", (e) => {
         e.stopPropagation();
-        fixing = { before: new Set(rep.results.filter((r) => r.status === "fail").map((r) => r.id)), name: rep.fileName };
+        fixing = { before: new Set(badIds(rep.results)), name: rep.fileName };
         runAnalysis(currentBuffer, rep.fileName, item.fixable === "lower" ? { lower: true } : { scale: item.fixScale });
       });
       div.appendChild(b);

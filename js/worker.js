@@ -115,7 +115,7 @@ self.onmessage = (ev) => {
       }
     }
 
-    const fixedStl = applied.length ? writeBinaryStl(pos) : null;
+    const fixedStl = applied.length ? writeBinaryStl(placedPos) : null; // placed: centred, on the bed
     const elapsedMs = Math.round(performance.now() - t0);
     self.postMessage({
       type: "done",

@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { parseStl, writeBinaryStl, StlError } from "../js/stl.js";
-import { lowerFloating, fixAccepted } from "../js/fix.js";
+import { lowerFloating, fixAccepted, badIds } from "../js/fix.js";
 import { runChecks } from "../js/checks.js";
 import { estimate } from "../js/slicer.js";
 import { PRINTERS } from "../js/printers.js";
@@ -201,7 +201,7 @@ test("Fix it: a fix that creates a new failing check is rejected", () => {
   // A 0.3 x 0.3 mm column resting 0.1 mm above a base holds at full size (enough contact area)
   // but not at 40% (contact area under 0.05 mm2), so scaling down adds a failing "floating".
   const model = parseStl(encodeBinaryStl([...boxTris(-20, -20, 0, 20, 20, 10), ...boxTris(-0.15, -0.15, 10.1, 0.15, 0.15, 14)]));
-  const failing = (p) => runChecks(p, PRINTERS.p1s).results.filter((x) => x.status === "fail").map((x) => x.id);
+  const failing = (p) => badIds(runChecks(p, PRINTERS.p1s).results);
   assert.deepEqual(failing(model), []);
   const small = Float32Array.from(model, (n) => n * 0.4);
   assert.deepEqual(failing(small), ["floating"]);
@@ -214,4 +214,17 @@ test("Fix it: a fix that creates a new failing check is rejected", () => {
 test("writeBinaryStl round-trips through parseStl", () => {
   const pos = parseStl(makeFloatingExampleStl());
   assert.deepEqual(parseStl(writeBinaryStl(pos)), pos);
+});
+
+test("Fix it: thin-wall warnings count against a fix, and a drop into a hidden obstacle is refused", () => {
+  const fake = (id, status) => ({ id, status });
+  assert.deepEqual(badIds([fake("thin", "warn"), fake("overhang", "warn"), fake("floating", "fail"), fake("fit", "pass")]), ["thin", "floating"]);
+  assert.equal(fixAccepted(new Set(["time"]), ["thin"]), false);
+  // A thin pillar under the floater that the gap ruler's sample points can miss: dropping to the
+  // base would push the floater through it, so no fix is offered and the file is left alone.
+  const base = [...boxTris(-30, -30, 0, 30, 30, 10), ...boxTris(3.1, 2.9, 9, 3.5, 3.3, 19.5)];
+  const pos = parseStl(encodeBinaryStl([...base, ...boxTris(-10, -10, 20, 10, 10, 24)]));
+  const r = lowerFloating(pos, PRINTERS.p1s);
+  assert.deepEqual(r.applied, []);
+  assert.equal(r.pos, pos);
 });
