@@ -2,21 +2,34 @@
 // for both supported printers, checks the time limit, and returns structured results
 // plus geometry buffers for the 3D viewer.
 
-import { parseStl } from "./stl.js";
+import { parseStl, writeBinaryStl } from "./stl.js";
 import { runChecks } from "./checks.js";
 import { estimate } from "./slicer.js";
 import { timeStatus, findScaleCandidate } from "./time-policy.js";
 import { PRINTERS } from "./printers.js";
 import { formatMinutes } from "./format.js";
+import { lowerFloating } from "./fix.js";
 
 self.onmessage = (ev) => {
-  const { buffer, fileName, maxMinutes = 30 } = ev.data;
+  const { buffer, fileName, maxMinutes = 30, apply } = ev.data;
   const progress = (stage, pct) => self.postMessage({ type: "progress", stage, pct });
   try {
     const t0 = performance.now();
     progress("Reading STL file...", 0.03);
-    const pos = parseStl(buffer);
+    let pos = parseStl(buffer);
     const printer = PRINTERS.p1s;
+
+    // "Fix it for me": apply the requested change, then run the normal checks on the result.
+    const applied = [];
+    if (apply?.scale > 0 && apply.scale < 1) {
+      pos = Float32Array.from(pos, (n) => n * apply.scale);
+      applied.push(`Scaled to ${Math.round(apply.scale * 100)}% of the original size`);
+    }
+    if (apply?.lower) {
+      const lowered = lowerFloating(pos, printer);
+      pos = lowered.pos;
+      applied.push(...lowered.applied);
+    }
 
     const chk = runChecks(pos, printer, progress);
     if (chk.results[0]?.id === "empty") throw new Error("This file has no printable shape in it. Make sure your design is on the workplane, then export it again as .STL.");
@@ -71,6 +84,8 @@ self.onmessage = (ev) => {
         title: `Print takes too long (${minStr}, limit is ${formatMinutes(maxMinutes)})`,
         message: `The estimated times are ${estimates.map((e) => `${e.printer.name}: ${formatMinutes(e.slice.minutes)}`).join("; ")}. No printer that fits is within the ${formatMinutes(maxMinutes)} class limit.`,
         fix: scaleFix,
+        fixable: candidate ? "scale" : undefined,
+        fixScale: candidate ? candidate.percent / 100 : undefined,
         highlight: null,
       });
     } else if (underLimit.length) {
@@ -100,6 +115,7 @@ self.onmessage = (ev) => {
       }
     }
 
+    const fixedStl = applied.length ? writeBinaryStl(pos) : null;
     const elapsedMs = Math.round(performance.now() - t0);
     self.postMessage({
       type: "done",
@@ -121,7 +137,9 @@ self.onmessage = (ev) => {
       },
       elapsedMs,
       placedPos,
-    }, [placedPos.buffer]);
+      applied,
+      fixedStl,
+    }, [placedPos.buffer, ...(fixedStl ? [fixedStl] : [])]);
   } catch (err) {
     self.postMessage({
       type: "error",

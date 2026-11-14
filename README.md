@@ -17,6 +17,8 @@ Print times are approximate, not slicer results or print guarantees. Settings, s
 
 When a model is over time, the app evaluates several smaller proportional sizes and may offer one as a starting point. It checks the scaled mesh and estimates its time, but cannot determine whether the size, holes, text, or other details suit the intended use. Students must check those themselves, export the changed model, and run the new file through this tool again.
 
+**Fix it for me.** For a floating part with a measurable gap, or a print that is over the time limit and has a suggested smaller size, the issue card shows a "Fix it for me" button. It lowers the part by the gap plus 0.1 mm, or scales the model down to the suggested size, checks the result again, and offers a fixed STL to download next to the Tinkercad steps. The change is kept only if the new check has fewer failing checks and no new ones; otherwise the original file is checked again and the student is told it could not be fixed automatically. The student's Tinkercad project is not changed. Add `?fix=off` to the link to hide the button.
+
 ## Teacher URL Parameters
 
 Configure the page for your class by sharing a link with query parameters (students cannot edit the time limit in the UI):
@@ -25,6 +27,7 @@ Configure the page for your class by sharing a link with query parameters (stude
 |---|---|---|---|
 | `max` | `30` | `?max=30` or `?max=45` | Maximum allowed print time in minutes (`1`–`600`). |
 | `learn` | optional | `?max=30&learn=required` | Mark applicable learning questions as required and withhold the ready-to-submit message until they are answered correctly. This is a classroom prompt, not enforced access control. |
+| `fix` | on | `?fix=off` | Hide the "Fix it for me" button. |
 
 **Example links:**
 - Standard 30-minute limit, with estimates for both printers: `https://maravedi.github.io/print-check/?max=30`

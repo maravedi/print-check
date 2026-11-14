@@ -55,3 +55,17 @@ function readAscii(text) {
   const n = Math.floor(vals.length / 9);
   return Float32Array.from(vals.slice(0, n * 9));
 }
+
+// Binary STL bytes for a Float32Array of 9 floats per triangle (inverse of parseStl).
+export function writeBinaryStl(pos) {
+  const n = pos.length / 9, dv = new DataView(new ArrayBuffer(84 + n * 50));
+  dv.setUint32(80, n, true);
+  for (let t = 0; t < n; t++) {
+    const p = t * 9, o = 84 + t * 50;
+    const ux = pos[p+3]-pos[p], uy = pos[p+4]-pos[p+1], uz = pos[p+5]-pos[p+2];
+    const vx = pos[p+6]-pos[p], vy = pos[p+7]-pos[p+1], vz = pos[p+8]-pos[p+2];
+    const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx, l = Math.hypot(nx, ny, nz) || 1;
+    [nx/l, ny/l, nz/l, ...pos.subarray(p, p + 9)].forEach((x, i) => dv.setFloat32(o + i * 4, x, true));
+  }
+  return dv.buffer;
+}
