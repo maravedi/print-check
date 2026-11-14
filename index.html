@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <title>3D Print Pre-Check for Tinkercad STL Files</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1l7 14H1z' fill='%234a90e2'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">✳</div>
+      <div>
+        <h1>Tinkercad 3D Print Pre-Check</h1>
+        <p class="subtitle">Tinkercad STL Checker</p>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="badge-rule" id="max-badge">30 min max, PLA, single color</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- Left column: upload + verdict + checklist -->
+    <section class="panel-left">
+      <div class="eyebrow">CHECK YOUR MODEL</div>
+      <div id="drop-zone" class="drop-zone">
+        <input id="file-input" type="file" accept=".stl,model/stl,application/sla" hidden />
+        <div class="drop-icon" aria-hidden="true">⇪</div>
+        <div class="drop-text">
+          <strong>Drag your Tinkercad <code>.stl</code> file here</strong>
+          <span class="drop-or">or</span>
+          <button type="button" id="upload-btn" class="btn-upload">Choose .stl file to upload</button>
+          <small class="file-rules"><strong>.stl files only.</strong> Up to <span id="max-mb">30</span> MB. Not .obj, .zip or .mtl.</small>
+          <small>100% private in your browser. Nothing is uploaded to a server.</small>
+        </div>
+      </div>
+
+      <div class="sample-bar">
+        <span>Try an example:</span>
+        <button type="button" class="chip" id="sample-pass">Passing Model</button>
+        <button type="button" class="chip" id="sample-float">Floating Piece Error</button>
+        <button type="button" class="chip" id="sample-slow">Over 30-Min Limit</button>
+      </div>
+
+      <div id="progress-box" class="progress-box" role="status" aria-live="polite" hidden>
+        <div class="progress-label" id="progress-text">Checking model...</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div id="verdict-card" class="verdict-card" role="status" aria-live="polite" hidden></div>
+
+      <section id="comparison" class="comparison" aria-live="polite" hidden></section>
+
+      <div id="checks-list" class="checks-list">
+        <div class="empty-hint">
+          <h2>How to export from Tinkercad</h2>
+          <ol>
+            <li>Press <strong>Ctrl + A</strong> (or <strong>Cmd + A</strong> on Mac) to select every shape, then click <strong>Group</strong>.</li>
+            <li>Make sure your design rests flat on the workplane (select it and press <strong>D</strong>).</li>
+            <li>Click <strong>Export</strong> in the top-right corner and choose <strong>.STL</strong>.</li>
+            <li>Upload that <code>.stl</code> file with the button above (or drag it in), fix any problems, and share the file with your teacher for review.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="scroll-more" id="scroll-more" hidden>
+        <button type="button" id="scroll-more-btn">More results below</button>
+      </div>
+    </section>
+
+    <!-- Right column: interactive 3D bed + model viewer -->
+    <section class="panel-right">
+      <div class="viewer-wrap">
+        <canvas id="viewer-canvas"></canvas>
+        <div class="viewer-toolbar">
+          <button type="button" class="btn-tool" id="reset-cam-btn">Reset Camera</button>
+          <button type="button" class="btn-tool" id="isolate-highlight-btn" hidden>Zoom to Issue</button>
+        </div>
+        <div class="viewer-legend">
+          <span id="legend-model" hidden><i id="legend-model-dot" class="dot dot-blue"></i> <span id="legend-model-label">Model</span></span>
+          <button type="button" id="legend-highlight" class="legend-btn" hidden aria-pressed="false" title="Zoom in on this issue"><i id="legend-highlight-dot" class="dot"></i> <span id="legend-highlight-label"></span> <span class="legend-action" id="legend-highlight-action">Click to zoom in</span></button>
+          <span class="viewer-help">Drag to rotate, Shift+Drag to pan, scroll to zoom</span>
+        </div>
+      </div>
+      <details id="stats-bar" class="stats-bar" hidden></details>
+    </section>
+  </main>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

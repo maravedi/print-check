@@ -1,0 +1,10 @@
+tools/.orca-flat/
+tools/calibration*.json
+.DS_Store
+node_modules/
+.impeccable/
+*.stl
+*.STL
+*.3mf
+*.3MF
+tests/private-fixtures.json
