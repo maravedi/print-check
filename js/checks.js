@@ -172,10 +172,15 @@ export function runChecks(pos, printer, onProgress = () => {}) {
     }
   }
   const floating = solid.filter((c) => !held.has(c));
+  let lowerFixes = [];
   if (floating.length) {
     const lowest = Math.min(...floating.map((c) => c.min[2]));
     // Where each floating piece's underside is closest to something below it, for the gap ruler.
     const markers = floating.map((c) => gapMarker(V, F, c, solid));
+    lowerFixes = floating.map((c, i) => ({
+      faces: c.faces,   // indexes into mesh.F (the cleaned faces)
+      dz: markers[i].kind === "part" ? -(markers[i].gap + 0.1) : -c.min[2],  // bed case: drop onto bed
+    }));
     const measured = markers.filter((m) => m.kind === "part").map((m) => m.gap);
     const lo = Math.min(...measured), hi = Math.max(...measured);
     const gapNote = !measured.length ? "" : measured.length === 1
@@ -185,7 +190,7 @@ export function runChecks(pos, printer, onProgress = () => {}) {
     const fixText = measured.length
       ? `Lower ${floating.length === 1 ? "it" : "each piece"} by its gap plus about 0.2 mm${lowerBy} so it overlaps the part below it. In Tinkercad, set the Snap Grid at the bottom right of the workplane to 0.1 mm to move that little. Then group everything.`
       : "Move the piece down so it overlaps the part below it (touching the side is not enough), or drop it onto the workplane (select it and press D). Then group everything.";
-    add({ id: "floating", status: "fail", title: `${floating.length} part${s(floating.length)} floating in the air`,
+    add({ id: "floating", status: "fail", fixable: "lower", title: `${floating.length} part${s(floating.length)} floating in the air`,
       message: `${floating.length === 1 ? "One piece isn't" : `${floating.length} pieces aren't`} resting on the bed or on another part (shown in red). The lowest one starts ${fmt(lowest)} mm up. The printer would have to print it in mid-air, and it would turn into spaghetti or fall off.${gapNote}`,
       fix: fixText,
       highlight: { faces: floating.flatMap((c) => Array.from(c.faces)),
@@ -249,7 +254,7 @@ export function runChecks(pos, printer, onProgress = () => {}) {
       const msg = crit > 0.01
         ? `${pct(warn)} of the surface belongs to walls thinner than ${LIMITS.minWall} mm (${pct(crit)} is thinner than one nozzle width, ${LIMITS.criticalWall} mm). Thin text, fine grooves, or thin spikes may come out faint, rough, or missing.`
         : `${pct(warn)} of the surface belongs to walls thinner than ${LIMITS.minWall} mm (orange). They will print, but may be weak or rough.`;
-      add({ id: "thin", status: "warn", title: "Some walls or details are very thin",
+      add({ id: "thin", status: "warn", severe: crit > 0.01, title: "Some walls or details are very thin",
         message: msg,
         fix: `Make the orange areas at least ${LIMITS.minWall} mm thick (1 to 2 mm is safer) if they need to show up clearly or be strong.`,
         highlight: { faces: thinFaces, color: "orange" } });
@@ -276,7 +281,7 @@ export function runChecks(pos, printer, onProgress = () => {}) {
 
   onProgress("Checks done", 0.9);
   const verdict = results.some((r) => r.status === "fail") ? "fail" : "pass";
-  return { results, mesh, topo, comps: solid, size, verdict, topologyOk: bad === 0 && !inverted.length };
+  return { results, mesh, topo, comps: solid, size, verdict, topologyOk: bad === 0 && !inverted.length, lowerFixes };
 }
 
 // Straight-down measurement from a floating piece to whatever is beneath it: the point on its

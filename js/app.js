@@ -5,10 +5,12 @@ import { StlViewer, GROUP_COLORS } from "./viewer.js";
 import { makePassingExampleStl, makeFloatingExampleStl, makeTooSlowExampleStl } from "./samples.js";
 import { formatMinutes } from "./format.js";
 import { questionFor, compareChecks } from "./learning.js";
+import { fixAccepted, badIds } from "./fix.js";
 
 const params = new URLSearchParams(window.location.search);
 const maxMinutes = Math.max(1, Math.min(600, Number(params.get("max")) || 30));
 const requireLearning = params.get("learn") === "required";
+const fixOff = params.get("fix") === "off";
 let currentBuffer = null;
 let currentFileName = "";
 let lastReport = null;
@@ -17,6 +19,7 @@ let requestId = 0;
 let activeLegendItem = null;
 let previousCheck = null;
 let watchdog = null;
+let fixing = null, fixNotice = null, fixUrl = null;
 // Chromebooks have little memory; Tinkercad models are normally well under 10 MB.
 const MAX_FILE_MB = 30;
 const WATCHDOG_MS = 180000;
@@ -115,12 +118,13 @@ async function handleFile(file) {
 
 function loadBuffer(buffer, fileName) {
   ++requestId;
+  fixing = fixNotice = null; // a half-finished fix must not judge the next file
   currentBuffer = buffer;
   currentFileName = fileName;
   runAnalysis(buffer, fileName);
 }
 
-function runAnalysis(buffer, fileName) {
+function runAnalysis(buffer, fileName, apply) {
   resetReport();
   viewer.setIsolated(false);
   worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
@@ -135,6 +139,7 @@ function runAnalysis(buffer, fileName) {
   // Send a copy of the buffer so it remains available for another analysis.
   const copy = buffer.slice(0);
   watchdog = setTimeout(() => {
+    fixing = fixNotice = null;
     resetReport();
     showError("Checking took too long, so it was stopped. The model may be too detailed for this device. Simplify it in Tinkercad and try again.");
   }, WATCHDOG_MS);
@@ -144,6 +149,7 @@ function runAnalysis(buffer, fileName) {
       progressText.textContent = msg.stage;
       progressFill.style.width = `${Math.round(msg.pct * 100)}%`;
     } else if (msg.type === "error") {
+      fixing = fixNotice = null;
       clearTimeout(watchdog);
       progressBox.hidden = true;
       showError(msg.message);
@@ -151,11 +157,19 @@ function runAnalysis(buffer, fileName) {
       clearTimeout(watchdog);
       progressBox.hidden = true;
       lastReport = msg;
+      if (fixing) {
+        const f = fixing; fixing = null;
+        const after = badIds(msg.results);
+        if (!msg.fixedStl || !fixAccepted(f.before, after)) { fixNotice = { bad: true }; runAnalysis(currentBuffer, f.name); return; }
+        fixNotice = { applied: msg.applied, stl: msg.fixedStl, name: f.name };
+      }
       renderReport(msg, previousCheck);
+      if (fixNotice) { showFixNotice(fixNotice); fixNotice = null; }
       previousCheck = { fileName: msg.fileName, results: msg.results.map(({ id, status, title }) => ({ id, status, title })) };
     }
   };
   worker.onerror = (err) => {
+    fixing = fixNotice = null;
     clearTimeout(watchdog);
     progressBox.hidden = true;
     showError(err?.message || "Something went wrong while checking the STL.");
@@ -164,11 +178,13 @@ function runAnalysis(buffer, fileName) {
     buffer: copy,
     fileName,
     maxMinutes,
+    apply,
   }, [copy]);
 }
 
 function resetReport() {
   clearTimeout(watchdog);
+  if (fixUrl) { URL.revokeObjectURL(fixUrl); fixUrl = null; }
   if (worker) { worker.terminate(); worker = null; }
   lastReport = null;
   activeLegendItem = null;
@@ -316,6 +332,9 @@ function renderReport(rep, previous) {
   let firstFailHighlight = null;
   let firstFailEl = null;
   const answered = new Set();
+  // Passing and info cards stay out of the way until asked for.
+  const quiet = document.createElement("details");
+  quiet.className = "quiet-checks";
 
   for (const item of sorted) {
     const hasHi = !!(item.highlight && ((item.highlight.faces && item.highlight.faces.length) || (item.highlight.segments && item.highlight.segments.length)));
@@ -332,6 +351,7 @@ function renderReport(rep, previous) {
       ${item.fix && !questionFor(item) ? `<div class="check-fix"><strong>How to fix in Tinkercad:</strong> ${escapeHtml(item.fix)}</div>` : ""}
     `;
     const question = questionFor(item);
+    let fixBtn = null; // shown once the required learning question is answered
     if (question) {
       const details = document.createElement("details");
       details.className = "learning-question";
@@ -348,6 +368,7 @@ function renderReport(rep, previous) {
           feedback.textContent = "Not quite. Try the hint or choose another answer.";
         }
         updateLearningProgress(answered, questions.length, rep.verdict);
+        if (fixBtn && requireLearning) fixBtn.hidden = !answered.has(item.id);
       });
       details.querySelector(".learning-answer").addEventListener("click", () => {
         feedback.textContent = `Answer: ${question.choices[0]}. ${question.explanation} Select that answer to complete this question.`;
@@ -360,6 +381,23 @@ function renderReport(rep, previous) {
         repair.addEventListener("click", e => e.stopPropagation());
         div.appendChild(repair);
       }
+    }
+    if (item.noFix && !fixOff) {
+      const note = document.createElement("p");
+      note.className = "no-fix";
+      note.textContent = item.noFix;
+      div.appendChild(note);
+    }
+    if (item.fixable && !fixOff) {
+      const b = Object.assign(document.createElement("button"), { type: "button", className: "btn-secondary", textContent: "Fix it for me" });
+      b.hidden = requireLearning && !!question;
+      fixBtn = b;
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fixing = { before: new Set(badIds(rep.results)), name: rep.fileName };
+        runAnalysis(currentBuffer, rep.fileName, item.fixable === "lower" ? { lower: true } : { scale: item.fixScale });
+      });
+      div.appendChild(b);
     }
     if (hasHi) {
       div.addEventListener("click", () => {
@@ -379,7 +417,15 @@ function renderReport(rep, previous) {
         firstFailEl = div;
       }
     }
-    checksList.appendChild(div);
+    (item.status === "fail" || item.status === "warn" ? checksList : quiet).appendChild(div);
+  }
+  const quietCount = quiet.children.length;
+  if (quietCount) {
+    const label = document.createElement("summary");
+    label.textContent = `${quietCount} passing or info check${quietCount === 1 ? "" : "s"} (show)`;
+    quiet.prepend(label);
+    quiet.open = !checksList.children.length; // nothing else to show: open it
+    checksList.appendChild(quiet);
   }
 
   // Automatically highlight the first failure on the 3D model so the student sees it immediately
@@ -389,6 +435,21 @@ function renderReport(rep, previous) {
     activeLegendItem = sorted.find(item => item.highlight === firstFailHighlight);
   }
   updateLegend();
+}
+
+function showFixNotice(n) {
+  const banner = document.createElement("div");
+  banner.className = `fix-banner${n.bad ? " bad" : ""}`;
+  if (n.bad) {
+    banner.innerHTML = `<p><strong>Couldn't fix this automatically.</strong> Follow the steps below.</p>`;
+  } else {
+    if (fixUrl) URL.revokeObjectURL(fixUrl);
+    fixUrl = URL.createObjectURL(new Blob([n.stl], { type: "model/stl" }));
+    banner.innerHTML = `<p><strong>Fixed and checked again:</strong></p><ul>${n.applied.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+      <p><a class="btn-secondary" href="${fixUrl}" download="${escapeHtml(n.name.replace(/\.stl$/i, ""))}-fixed.stl">Download fixed STL</a></p>
+      <p>Your Tinkercad project is not changed. Make the same change there too, or print this fixed file.</p>`;
+  }
+  checksList.prepend(banner);
 }
 
 function updateLearningProgress(answered, total, verdict) {

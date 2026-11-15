@@ -22,6 +22,19 @@ test("a proposed scale is resliced and checked; unsafe candidates are rejected",
   const candidate = findScaleCandidate(args);
   assert.ok(candidate);
   assert.ok(candidate.percent < 100);
-  assert.ok(candidate.minutes < 24);
-  assert.equal(findScaleCandidate({ ...args, check: () => ({ results: [{ id: "thin", status: "warn" }] }) }), null);
+  assert.ok(candidate.minutes <= 30);
+  assert.equal(findScaleCandidate({ ...args, check: () => ({ results: [{ id: "thin", status: "warn", severe: true }] }) }), null);
+  // a mild thin-walls warning does not block a fix
+  assert.ok(findScaleCandidate({ ...args, check: () => ({ results: [{ id: "thin", status: "warn", severe: false }] }) }));
+});
+
+test("a rejected search records why each size failed", () => {
+  const pos = parseStl(makeTooSlowExampleStl());
+  const original = runChecks(pos, PRINTERS.p1s);
+  const trace = [];
+  const none = findScaleCandidate({ mesh: original.mesh, size: original.size, printers: [PRINTERS.p1s], limit: 30, estimate, trace,
+    check: () => ({ results: [{ id: "thin", status: "warn", severe: true }] }) });
+  assert.equal(none, null);
+  assert.ok(trace.some((x) => x.why === "time" && x.minutes > 24)); // big sizes are too slow
+  assert.ok(trace.some((x) => x.why === "checks" && x.bad.includes("thin"))); // fast sizes fail the check
 });

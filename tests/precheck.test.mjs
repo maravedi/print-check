@@ -4,7 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { parseStl, StlError } from "../js/stl.js";
+import { parseStl, writeBinaryStl, StlError } from "../js/stl.js";
+import { lowerFloating, fixAccepted, badIds } from "../js/fix.js";
 import { runChecks } from "../js/checks.js";
 import { estimate } from "../js/slicer.js";
 import { PRINTERS } from "../js/printers.js";
@@ -177,4 +178,54 @@ test("an absurdly large model does not exhaust memory in the slicer", () => {
   const r = runChecks(parseStl(encodeBinaryStl(boxTris(0, 0, 0, 1e6, 1e6, 10))), PRINTERS.p1s);
   const s = estimate(r.mesh, PRINTERS.p1s); // grid is capped, so this returns instead of throwing RangeError
   assert.ok(Number.isFinite(s.minutes));
+});
+
+test("Fix it: lowering a floating part clears the floating check without new failures", () => {
+  const pos = parseStl(makeFloatingExampleStl());
+  const before = runChecks(pos, PRINTERS.p1s);
+  assert.equal(before.results.find((x) => x.id === "floating").fixable, "lower");
+  const { pos: fixed, applied } = lowerFloating(pos, PRINTERS.p1s);
+  assert.ok(applied.length > 0);
+  const after = runChecks(fixed, PRINTERS.p1s);
+  assert.equal(after.results.find((x) => x.id === "floating").status, "pass");
+  const failing = (r) => r.results.filter((x) => x.status === "fail").map((x) => x.id);
+  assert.ok(failing(after).every((id) => failing(before).includes(id)));
+  // A part 0.3 mm above the base is lowered by gap + 0.1 mm.
+  const near = parseStl(encodeBinaryStl([...boxTris(-20, -20, 0, 20, 20, 10), ...boxTris(-5, -5, 10.3, 5, 5, 15)]));
+  const low = lowerFloating(near, PRINTERS.p1s);
+  assert.match(low.applied[0], /0\.4\d? mm|0\.40 mm/);
+  assert.equal(runChecks(low.pos, PRINTERS.p1s).results.find((x) => x.id === "floating").status, "pass");
+});
+
+test("Fix it: a fix that creates a new failing check is rejected", () => {
+  // A 0.3 x 0.3 mm column resting 0.1 mm above a base holds at full size (enough contact area)
+  // but not at 40% (contact area under 0.05 mm2), so scaling down adds a failing "floating".
+  const model = parseStl(encodeBinaryStl([...boxTris(-20, -20, 0, 20, 20, 10), ...boxTris(-0.15, -0.15, 10.1, 0.15, 0.15, 14)]));
+  const failing = (p) => badIds(runChecks(p, PRINTERS.p1s).results);
+  assert.deepEqual(failing(model), []);
+  const small = Float32Array.from(model, (n) => n * 0.4);
+  assert.deepEqual(failing(small), ["floating"]);
+  assert.equal(fixAccepted(new Set(["time", "empty_layers"]), failing(small)), false); // fewer, but a new id
+  assert.equal(fixAccepted(new Set(["time", "empty_layers"]), ["time"]), true);
+  assert.equal(fixAccepted(new Set(["time"]), ["time"]), false); // nothing improved
+  assert.equal(fixAccepted(new Set(["time"]), []), true);
+});
+
+test("writeBinaryStl round-trips through parseStl", () => {
+  const pos = parseStl(makeFloatingExampleStl());
+  assert.deepEqual(parseStl(writeBinaryStl(pos)), pos);
+});
+
+test("Fix it: thin-wall warnings count against a fix, and a drop into a hidden obstacle is refused", () => {
+  const fake = (id, status) => ({ id, status });
+  assert.deepEqual(badIds([{ ...fake("thin", "warn"), severe: true }, fake("overhang", "warn"), fake("floating", "fail"), fake("fit", "pass")]), ["thin", "floating"]);
+  assert.deepEqual(badIds([{ ...fake("thin", "warn"), severe: false }]), []); // mild thin walls do not block
+  assert.equal(fixAccepted(new Set(["time"]), ["thin"]), false);
+  // A thin pillar under the floater that the gap ruler's sample points can miss: dropping to the
+  // base would push the floater through it, so no fix is offered and the file is left alone.
+  const base = [...boxTris(-30, -30, 0, 30, 30, 10), ...boxTris(3.1, 2.9, 9, 3.5, 3.3, 19.5)];
+  const pos = parseStl(encodeBinaryStl([...base, ...boxTris(-10, -10, 20, 10, 10, 24)]));
+  const r = lowerFloating(pos, PRINTERS.p1s);
+  assert.deepEqual(r.applied, []);
+  assert.equal(r.pos, pos);
 });
