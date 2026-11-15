@@ -118,6 +118,7 @@ async function handleFile(file) {
 
 function loadBuffer(buffer, fileName) {
   ++requestId;
+  fixing = fixNotice = null; // a half-finished fix must not judge the next file
   currentBuffer = buffer;
   currentFileName = fileName;
   runAnalysis(buffer, fileName);
@@ -138,6 +139,7 @@ function runAnalysis(buffer, fileName, apply) {
   // Send a copy of the buffer so it remains available for another analysis.
   const copy = buffer.slice(0);
   watchdog = setTimeout(() => {
+    fixing = fixNotice = null;
     resetReport();
     showError("Checking took too long, so it was stopped. The model may be too detailed for this device. Simplify it in Tinkercad and try again.");
   }, WATCHDOG_MS);
@@ -147,6 +149,7 @@ function runAnalysis(buffer, fileName, apply) {
       progressText.textContent = msg.stage;
       progressFill.style.width = `${Math.round(msg.pct * 100)}%`;
     } else if (msg.type === "error") {
+      fixing = fixNotice = null;
       clearTimeout(watchdog);
       progressBox.hidden = true;
       showError(msg.message);
@@ -166,6 +169,7 @@ function runAnalysis(buffer, fileName, apply) {
     }
   };
   worker.onerror = (err) => {
+    fixing = fixNotice = null;
     clearTimeout(watchdog);
     progressBox.hidden = true;
     showError(err?.message || "Something went wrong while checking the STL.");
@@ -180,6 +184,7 @@ function runAnalysis(buffer, fileName, apply) {
 
 function resetReport() {
   clearTimeout(watchdog);
+  if (fixUrl) { URL.revokeObjectURL(fixUrl); fixUrl = null; }
   if (worker) { worker.terminate(); worker = null; }
   lastReport = null;
   activeLegendItem = null;

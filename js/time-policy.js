@@ -8,8 +8,6 @@ export function timeStatus(minutes, limit) {
 
 // Try a small, bounded set of proportional sizes. A suggestion is only a
 // starting point: purpose and fine detail cannot be inferred from an STL.
-import { blocks } from "./fix.js";
-
 // Optional `trace` collects why each size was rejected: { percent, printer, minutes, why }.
 export function findScaleCandidate({ mesh, size, printers, limit, estimate, check, trace = [] }) {
   for (let percent = 90; percent >= 30; percent -= 5) {
@@ -27,3 +25,7 @@ export function findScaleCandidate({ mesh, size, printers, limit, estimate, chec
   }
   return null;
 }
+
+// A check result that stops a size or a fix counting as better: any failure, or a severe
+// thin-walls warning (a mild one means "will print, but may be weak" and does not block).
+export const blocks = (r) => r.status === "fail" || (r.id === "thin" && r.status === "warn" && r.severe);

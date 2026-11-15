@@ -1,6 +1,7 @@
 // "Fix it for me" helpers shared by the worker, the page and the tests.
 
 import { runChecks } from "./checks.js";
+import { blocks } from "./time-policy.js";
 
 export const MAX_SINK_MM = 0.25; // the fix sinks a part 0.1 mm into what is below it; allow for sampling error
 
@@ -53,10 +54,7 @@ export function lowerFloating(pos, printer, maxPasses = 5) {
   return { pos, applied };
 }
 
-// Ids that block a fix from counting as better: every failing check, plus severe thin walls
-// (a warning, but scaling down is the change most likely to make details too thin). A mild
-// thin-walls warning ("will print, but may be weak") does not block.
-export const blocks = (r) => r.status === "fail" || (r.id === "thin" && r.status === "warn" && r.severe);
+// Ids that count against a fix: every failing check plus severe thin walls (see `blocks`).
 export const badIds = (results) => results.filter(blocks).map((r) => r.id);
 
 // A fix is kept only if it leaves fewer bad check ids and none that were not bad before.
