@@ -327,6 +327,9 @@ function renderReport(rep, previous) {
   let firstFailHighlight = null;
   let firstFailEl = null;
   const answered = new Set();
+  // Passing and info cards stay out of the way until asked for.
+  const quiet = document.createElement("details");
+  quiet.className = "quiet-checks";
 
   for (const item of sorted) {
     const hasHi = !!(item.highlight && ((item.highlight.faces && item.highlight.faces.length) || (item.highlight.segments && item.highlight.segments.length)));
@@ -409,7 +412,15 @@ function renderReport(rep, previous) {
         firstFailEl = div;
       }
     }
-    checksList.appendChild(div);
+    (item.status === "fail" || item.status === "warn" ? checksList : quiet).appendChild(div);
+  }
+  const quietCount = quiet.children.length;
+  if (quietCount) {
+    const label = document.createElement("summary");
+    label.textContent = `${quietCount} passing or info check${quietCount === 1 ? "" : "s"} (show)`;
+    quiet.prepend(label);
+    quiet.open = !checksList.children.length; // nothing else to show: open it
+    checksList.appendChild(quiet);
   }
 
   // Automatically highlight the first failure on the 3D model so the student sees it immediately

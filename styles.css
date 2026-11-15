@@ -832,3 +832,13 @@ a.btn-secondary {
   border-radius: 6px;
   font-size: 0.85rem;
 }
+
+.quiet-checks > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0;
+}
+
+.quiet-checks[open] > summary { margin-bottom: 0.5rem; }
