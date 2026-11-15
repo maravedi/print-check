@@ -374,6 +374,12 @@ function renderReport(rep, previous) {
         div.appendChild(repair);
       }
     }
+    if (item.noFix && !fixOff) {
+      const note = document.createElement("p");
+      note.className = "no-fix";
+      note.textContent = item.noFix;
+      div.appendChild(note);
+    }
     if (item.fixable && !fixOff) {
       const b = Object.assign(document.createElement("button"), { type: "button", className: "btn-secondary", textContent: "Fix it for me" });
       b.hidden = requireLearning && !!question;

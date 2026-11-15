@@ -5,10 +5,30 @@
 import { parseStl, writeBinaryStl } from "./stl.js";
 import { runChecks } from "./checks.js";
 import { estimate } from "./slicer.js";
-import { timeStatus, findScaleCandidate } from "./time-policy.js";
+import { timeStatus, findScaleCandidate, REVIEW_FRACTION } from "./time-policy.js";
 import { PRINTERS } from "./printers.js";
 import { formatMinutes } from "./format.js";
 import { lowerFloating } from "./fix.js";
+
+// Plain-language reasons why no smaller size can be offered, from findScaleCandidate's trace.
+function noScaleReason(trace, limit) {
+  const need = formatMinutes(limit * REVIEW_FRACTION);
+  const slow = trace.filter((x) => x.why === "time");
+  const checks = trace.filter((x) => x.why === "checks");
+  const reasons = [];
+  if (slow.length) {
+    const best = slow.reduce((a, b) => (b.minutes < a.minutes ? b : a));
+    reasons.push(`at ${best.percent}% it still takes ${formatMinutes(best.minutes)} on the ${best.printer} (it needs to be under ${need})`);
+  }
+  if (checks.length) {
+    const pcts = [...new Set(checks.map((x) => x.percent))];
+    const ids = new Set(checks.flatMap((x) => x.bad));
+    const what = [ids.has("thin") && "walls and details get too thin to print", ids.has("floating") && "parts end up floating", [...ids].some((i) => i !== "thin" && i !== "floating") && "new problems appear"].filter(Boolean).join(" and ");
+    reasons.push(`the sizes that are fast enough (${pcts.join("%, ")}%) fail because ${what}`);
+  }
+  if (trace.some((x) => x.why === "tiny")) reasons.push("smaller than that the model would be under 10 mm");
+  return `No automatic fix: shrinking it evenly cannot work. ${reasons.length ? `${reasons.map((r, i) => (i ? r : r[0].toUpperCase() + r.slice(1))).join("; ")}.` : "No smaller size was possible."} Try reducing the height, simplifying the model, or ask your teacher.`;
+}
 
 self.onmessage = (ev) => {
   const { buffer, fileName, maxMinutes = 30, apply } = ev.data;
@@ -45,6 +65,7 @@ self.onmessage = (ev) => {
       const fitting = estimates.filter((e) => e.fits);
       fitResult.status = fitting.length ? "pass" : "fail";
       fitResult.title = fitting.length ? "Fits at least one supported printer" : "Too big for both supported printers";
+      if (!fitting.length) fitResult.noFix = "Making it smaller changes the print time and the details, so choose the new size yourself in Tinkercad.";
       fitResult.message = fitting.length
         ? `This model fits: ${fitting.map((e) => e.printer.name).join(" and ")}. The teacher will choose which printer to use.`
         : `Your model is ${chk.size.map((n) => n.toFixed(1)).join(" × ")} mm. It exceeds the build volume of both supported printers.`;
@@ -73,7 +94,8 @@ self.onmessage = (ev) => {
       progress("Checking smaller sizes...", 0.96);
       // A broken model (floating parts, holes) stays broken at any size, so don't suggest one.
       const brokenAtAnySize = chk.results.some((r) => r.status === "fail" && r.id !== "fit");
-      const candidate = brokenAtAnySize ? null : findScaleCandidate({ mesh: chk.mesh, size: chk.size, printers: Object.values(PRINTERS), limit: maxMinutes, estimate,
+      const trace = [];
+      const candidate = brokenAtAnySize ? null : findScaleCandidate({ mesh: chk.mesh, size: chk.size, printers: Object.values(PRINTERS), limit: maxMinutes, estimate, trace,
         check: (scale, profile) => runChecks(Float32Array.from(pos, n => n * scale), profile) });
       const scaleFix = candidate
         ? `One starting point is ${candidate.percent}% of the original size (${candidate.size.map(n => n.toFixed(1)).join(" × ")} mm), estimated at ${formatMinutes(candidate.minutes)} on ${candidate.printer}. Check that holes, text and the overall size will still be useful. Scale uniformly in Tinkercad, export the new STL and check it again. The teacher must confirm the final print time.`
@@ -84,6 +106,9 @@ self.onmessage = (ev) => {
         title: `Print takes too long (${minStr}, limit is ${formatMinutes(maxMinutes)})`,
         message: `The estimated times are ${estimates.map((e) => `${e.printer.name}: ${formatMinutes(e.slice.minutes)}`).join("; ")}. No printer that fits is within the ${formatMinutes(maxMinutes)} class limit.`,
         fix: scaleFix,
+        noFix: candidate ? undefined : brokenAtAnySize
+          ? "Other problems in this model would stay at any size. Fix those first, then check again."
+          : noScaleReason(trace, maxMinutes),
         fixable: candidate ? "scale" : undefined,
         fixScale: candidate ? candidate.percent / 100 : undefined,
         highlight: null,
