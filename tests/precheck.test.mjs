@@ -218,7 +218,8 @@ test("writeBinaryStl round-trips through parseStl", () => {
 
 test("Fix it: thin-wall warnings count against a fix, and a drop into a hidden obstacle is refused", () => {
   const fake = (id, status) => ({ id, status });
-  assert.deepEqual(badIds([fake("thin", "warn"), fake("overhang", "warn"), fake("floating", "fail"), fake("fit", "pass")]), ["thin", "floating"]);
+  assert.deepEqual(badIds([{ ...fake("thin", "warn"), severe: true }, fake("overhang", "warn"), fake("floating", "fail"), fake("fit", "pass")]), ["thin", "floating"]);
+  assert.deepEqual(badIds([{ ...fake("thin", "warn"), severe: false }]), []); // mild thin walls do not block
   assert.equal(fixAccepted(new Set(["time"]), ["thin"]), false);
   // A thin pillar under the floater that the gap ruler's sample points can miss: dropping to the
   // base would push the floater through it, so no fix is offered and the file is left alone.

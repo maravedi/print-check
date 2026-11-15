@@ -254,7 +254,7 @@ export function runChecks(pos, printer, onProgress = () => {}) {
       const msg = crit > 0.01
         ? `${pct(warn)} of the surface belongs to walls thinner than ${LIMITS.minWall} mm (${pct(crit)} is thinner than one nozzle width, ${LIMITS.criticalWall} mm). Thin text, fine grooves, or thin spikes may come out faint, rough, or missing.`
         : `${pct(warn)} of the surface belongs to walls thinner than ${LIMITS.minWall} mm (orange). They will print, but may be weak or rough.`;
-      add({ id: "thin", status: "warn", title: "Some walls or details are very thin",
+      add({ id: "thin", status: "warn", severe: crit > 0.01, title: "Some walls or details are very thin",
         message: msg,
         fix: `Make the orange areas at least ${LIMITS.minWall} mm thick (1 to 2 mm is safer) if they need to show up clearly or be strong.`,
         highlight: { faces: thinFaces, color: "orange" } });

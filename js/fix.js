@@ -53,9 +53,11 @@ export function lowerFloating(pos, printer, maxPasses = 5) {
   return { pos, applied };
 }
 
-// Ids that block a fix from counting as better: every failing check, plus thin walls
-// (a warning), because scaling down is the change most likely to make details too thin.
-export const badIds = (results) => results.filter((r) => r.status === "fail" || (r.id === "thin" && r.status === "warn")).map((r) => r.id);
+// Ids that block a fix from counting as better: every failing check, plus severe thin walls
+// (a warning, but scaling down is the change most likely to make details too thin). A mild
+// thin-walls warning ("will print, but may be weak") does not block.
+export const blocks = (r) => r.status === "fail" || (r.id === "thin" && r.status === "warn" && r.severe);
+export const badIds = (results) => results.filter(blocks).map((r) => r.id);
 
 // A fix is kept only if it leaves fewer bad check ids and none that were not bad before.
 export const fixAccepted = (before, after) =>

@@ -5,26 +5,26 @@
 import { parseStl, writeBinaryStl } from "./stl.js";
 import { runChecks } from "./checks.js";
 import { estimate } from "./slicer.js";
-import { timeStatus, findScaleCandidate, REVIEW_FRACTION } from "./time-policy.js";
+import { timeStatus, findScaleCandidate } from "./time-policy.js";
 import { PRINTERS } from "./printers.js";
 import { formatMinutes } from "./format.js";
 import { lowerFloating } from "./fix.js";
 
 // Plain-language reasons why no smaller size can be offered, from findScaleCandidate's trace.
 function noScaleReason(trace, limit) {
-  const need = formatMinutes(limit * REVIEW_FRACTION);
+  const need = formatMinutes(limit);
   const slow = trace.filter((x) => x.why === "time");
   const checks = trace.filter((x) => x.why === "checks");
   const reasons = [];
   if (slow.length) {
     const best = slow.reduce((a, b) => (b.minutes < a.minutes ? b : a));
-    reasons.push(`at ${best.percent}% it still takes ${formatMinutes(best.minutes)} on the ${best.printer} (it needs to be under ${need})`);
+    reasons.push(`at ${best.percent}% it still takes ${formatMinutes(best.minutes)} on the ${best.printer} (the limit is ${need})`);
   }
   if (checks.length) {
     const pcts = [...new Set(checks.map((x) => x.percent))];
     const ids = new Set(checks.flatMap((x) => x.bad));
     const what = [ids.has("thin") && "walls and details get too thin to print", ids.has("floating") && "parts end up floating", [...ids].some((i) => i !== "thin" && i !== "floating") && "new problems appear"].filter(Boolean).join(" and ");
-    reasons.push(`the sizes that are fast enough (${pcts.join("%, ")}%) fail because ${what}`);
+    reasons.push(`the sizes that are quick enough (${pcts.join("%, ")}%) fail because ${what}`);
   }
   if (trace.some((x) => x.why === "tiny")) reasons.push("smaller than that the model would be under 10 mm");
   return `No automatic fix: shrinking it evenly cannot work. ${reasons.length ? `${reasons.map((r, i) => (i ? r : r[0].toUpperCase() + r.slice(1))).join("; ")}.` : "No smaller size was possible."} Try reducing the height, simplifying the model, or ask your teacher.`;
