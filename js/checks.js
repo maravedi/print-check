@@ -26,7 +26,8 @@ const FIX = {
   group: "In Tinkercad, select everything (Ctrl+A / Cmd+A) and click Group, then export again.",
 };
 
-export function runChecks(pos, printer, onProgress = () => {}) {
+// opts.relief=false skips the relief-detail check (used by the size search, whose blocks() ignores it).
+export function runChecks(pos, printer, onProgress = () => {}, { relief = true } = {}) {
   const results = [];
   const add = (r) => results.push({ highlight: null, fix: "", ...r });
 
@@ -281,7 +282,7 @@ export function runChecks(pos, printer, onProgress = () => {}) {
   }
 
   // ---- Raised text/detail on flat relief parts (coins, badges): can one nozzle line draw it?
-  if (bad === 0) {
+  if (bad === 0 && relief) {
     onProgress("Checking raised text and detail", 0.88);
     const rel = analyzeRelief(mesh, size, printer.lw.outer);
     if (rel) {

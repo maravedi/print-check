@@ -258,6 +258,14 @@ test("relief detail: strokes and gaps of 1.2 mm pass; corners alone do not trip 
   assert.ok(r.data.thinMm2 < 0.5 && r.data.gapMm2 < 0.5);
 });
 
+test("relief detail: size search can skip it (relief: false) without changing other checks", () => {
+  const pos = plaque(0.3, 1.5);
+  const full = runChecks(pos, PRINTERS.ad5m), lean = runChecks(pos, PRINTERS.ad5m, undefined, { relief: false });
+  assert.equal(lean.results.find((r) => r.id === "relief-detail"), undefined);
+  const others = (c) => c.results.filter((r) => r.id !== "relief-detail").map((r) => `${r.id}:${r.status}`);
+  assert.deepEqual(others(lean), others(full));
+});
+
 test("relief detail: tall parts are not treated as relief", () => {
   assert.equal(reliefOf(makePassingExampleStl()), undefined);
 });

@@ -51,7 +51,8 @@ const segArea = (s) => { let a = 0; for (let i = 0; i < s.length; i += 4) a += s
 
 // Felzenszwalb squared Euclidean distance transform (pixels) to the nearest `true` pixel.
 function edt(mask, W, H) {
-  const INF = 1e20, D = new Float64Array(W * H);
+  // Float32: four W*H distance maps stay live; at the pixel cap Float64 costs ~130 MB on a Chromebook.
+  const INF = 1e20, D = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) D[i] = mask[i] ? 0 : INF;
   const n = Math.max(W, H), f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), zb = new Float64Array(n + 1);
   const pass = (len, get, set) => {
