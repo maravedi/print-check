@@ -9,6 +9,7 @@ import { timeStatus, findScaleCandidate } from "./time-policy.js";
 import { PRINTERS } from "./printers.js";
 import { formatMinutes } from "./format.js";
 import { lowerFloating } from "./fix.js";
+import { analyzePrintTraits } from "./preset.js";
 
 // Plain-language reasons why no smaller size can be offered, from findScaleCandidate's trace.
 function noScaleReason(trace, limit) {
@@ -141,6 +142,7 @@ self.onmessage = (ev) => {
     }
 
     const fixedStl = applied.length ? writeBinaryStl(placedPos) : null; // placed: centred, on the bed
+    const traits = analyzePrintTraits(chk.mesh, chk.size, chk.results, estimates[0]?.slice, printer);
     const elapsedMs = Math.round(performance.now() - t0);
     self.postMessage({
       type: "done",
@@ -148,6 +150,7 @@ self.onmessage = (ev) => {
       maxMinutes,
       verdict,
       estimates,
+      traits,
       size: chk.size,
       triangleCount: nT,
       partCount: chk.comps ? chk.comps.length : 1,

@@ -65,7 +65,13 @@ node --test tests/*.test.mjs
 
 # Audit one or more STL files from the command line
 node tools/precheck-cli.mjs --printer p1s path/to/model.stl
+
+# Two-colour print on a single extruder: all files on one OrcaSlicer plate, pause already placed
+# (default: the topmost detected pause; override with --pause-z 1.28 or --pause-z 1.28,2.12)
+node tools/precheck-cli.mjs --printer ad5m --3mf coin.3mf heads.stl tails.stl pin.stl
 ```
+
+A process preset (`--preset orca`, or the web page's `.json` download) cannot hold a pause, because OrcaSlicer keeps pauses in the project file. The `.3mf` (CLI `--3mf`, or the web page's "Two-color print" buttons) carries the parts, the pause (`Metadata/custom_gcode_per_layer.xml`) and a per-object layer height, so the pause stays on its layer whichever process preset is selected. OrcaSlicer turns it into the printer's pause G-code (`M25` on the AD5M).
 
 The CLI checks one selected printer and reports a time estimate only when topology is acceptable. Its verdict covers mesh checks, not the browser's class time limit or two-printer review policy.
 

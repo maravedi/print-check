@@ -769,6 +769,190 @@ body {
   background: none;
 }
 
+/* View switcher nav tabs */
+.view-nav {
+  display: flex;
+  align-items: center;
+  background: #191b29;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.nav-tab {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-tab:hover {
+  color: var(--text);
+}
+
+.nav-tab.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Fidget Store pane and cards */
+.store-intro {
+  margin-bottom: 1.25rem;
+}
+
+.store-intro h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.store-intro p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.store-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fidget-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fidget-card:hover {
+  border-color: #555775;
+}
+
+.fidget-card.active-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.fidget-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fidget-title-group h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.fidget-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fidget-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  background: var(--panel-alt);
+  color: var(--muted);
+  border-radius: 9999px;
+}
+
+.fidget-cost-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(251, 108, 174, 0.15);
+  border: 1px solid rgba(251, 108, 174, 0.35);
+  color: #ff94c7;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.fidget-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.fidget-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.fidget-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.btn-inspect {
+  flex: 1;
+  padding: 7px 12px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-inspect:hover {
+  background: #323348;
+  border-color: #6366f1;
+}
+
+.btn-download-stl {
+  padding: 7px 12px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-download-stl:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+}
+
+
 .legend-btn[aria-pressed="true"] {
   border-color: var(--accent);
   background: rgba(251, 108, 174, 0.25);
@@ -842,3 +1026,15 @@ a.btn-secondary {
 }
 
 .quiet-checks[open] > summary { margin-bottom: 0.5rem; }
+
+/* Slicer settings + two-colour project panel. Classes, not inline styles: the CSP is style-src 'self'. */
+.preset-recommendations { margin-top: 14px; padding: 12px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); font-size: 13px; }
+.preset-title { margin: 0 0 6px 0; font-size: 13px; color: #38bdf8; }
+.preset-title-caps { text-transform: uppercase; letter-spacing: 0.5px; }
+.preset-list { margin: 0 0 10px 0; padding-left: 18px; line-height: 1.5; color: #cbd5e1; }
+.preset-note { margin: 0 0 8px 0; color: #cbd5e1; }
+.two-color-label { display: block; }
+.two-color-label input { display: block; margin-top: 4px; }
+.preset-btn { display: inline-block; padding: 5px 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #7dd3fc; text-decoration: none; font-weight: 500; font-size: 12px; cursor: pointer; }
+.two-color { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
+.two-color-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }

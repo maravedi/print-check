@@ -273,6 +273,8 @@ export function estimate(mesh, printer, scale = 1.0, onProgress = () => {}) {
     emptyLayers,
     filamentMm,
     filamentG,
+    layerAreas: Array.from(area),
+    zLevels: Array.from(zLevels),
     features: {
       wallSec: tOuter + tInner,
       infillSec: tSolid + tSparse,

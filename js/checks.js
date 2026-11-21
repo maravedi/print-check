@@ -3,6 +3,7 @@
 
 import { buildMesh, topology, components, faceNormalArea } from "./mesh.js";
 import { BVH, bvhTouch } from "./bvh.js";
+import { analyzeRelief, RELIEF } from "./relief.js";
 
 export const LIMITS = {
   minWall: 0.8,        // mm: two extrusions; thinner walls print weak or patchy
@@ -276,6 +277,25 @@ export function runChecks(pos, printer, onProgress = () => {}) {
       add({ id: "contact", status: "warn", title: "Very small contact with the bed",
         message: `Only about ${fmt(contact)} mm² of the model sits flat on the bed. It could wobble or come loose while printing.`,
         fix: "Give the model a flat bottom, or add a thin flat base (a box 1 to 2 mm thick) underneath and group it." });
+    }
+  }
+
+  // ---- Raised text/detail on flat relief parts (coins, badges): can one nozzle line draw it?
+  if (bad === 0) {
+    onProgress("Checking raised text and detail", 0.88);
+    const rel = analyzeRelief(mesh, size, printer.lw.outer);
+    if (rel) {
+      const lw = fmt(rel.lineWidth);
+      if (rel.thinMm2 > RELIEF.thinWarnMm2 || rel.gapMm2 > RELIEF.gapWarnMm2) {
+        add({ id: "relief-detail", status: "warn", severe: true, data: { ...rel, faces: undefined },
+          title: "Raised text or detail is finer than the nozzle",
+          message: `Cut through the raised layer at ${fmt(rel.z)} mm: ${fmt(rel.thinMm2)} mm² of raised detail is narrower than one ${lw} mm nozzle line and ${fmt(rel.gapMm2)} mm² of gaps between strokes (inside letters, between letters) is narrower than one line. Narrow strokes come out as blobs or vanish, and narrow gaps fill in, so text prints unreadable.`,
+          fix: `Make letters taller or use a bolder, more open font so strokes and the gaps inside letters are at least ${fmt(rel.lineWidth * 2)} mm wide (one line, ${lw} mm, is the bare minimum). Fewer, bigger letters read better than many small ones.`,
+          highlight: { faces: rel.faces, color: "orange" } });
+      } else {
+        add({ id: "relief-detail", status: "pass", data: { ...rel, faces: undefined }, title: "Raised text and detail are printable",
+          message: `Raised strokes and the gaps between them are at least one ${lw} mm nozzle line wide.` });
+      }
     }
   }
 

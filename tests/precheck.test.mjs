@@ -229,3 +229,35 @@ test("Fix it: thin-wall warnings count against a fix, and a drop into a hidden o
   assert.deepEqual(r.applied, []);
   assert.equal(r.pos, pos);
 });
+
+// A 30 mm plaque with six raised 8 mm bars: bar width w, spaced `gap` apart.
+const plaque = (w, gap) => {
+  const tris = boxTris(-15, -15, 0, 15, 15, 1.2);
+  for (let i = 0; i < 6; i++) { const x = -6 + i * (w + gap); tris.push(...boxTris(x, -4, 1.2, x + w, 4, 2.2)); }
+  return parseStl(encodeBinaryStl(tris));
+};
+const reliefOf = (pos) => runChecks(pos, PRINTERS.ad5m).results.find((r) => r.id === "relief-detail");
+
+test("relief detail: raised strokes narrower than a nozzle line are flagged", () => {
+  const r = reliefOf(plaque(0.3, 1.5));
+  assert.equal(r.status, "warn");
+  assert.ok(r.data.thinMm2 > 10, `thin ${r.data.thinMm2}`);
+  assert.ok(r.highlight.faces.length > 0);
+});
+
+test("relief detail: gaps narrower than a nozzle line (letters fusing) are flagged", () => {
+  const r = reliefOf(plaque(1.0, 0.25));
+  assert.equal(r.status, "warn");
+  assert.ok(r.data.gapMm2 > 5, `gap ${r.data.gapMm2}`);
+  assert.ok(r.data.thinMm2 < 1, `thin ${r.data.thinMm2}`);
+});
+
+test("relief detail: strokes and gaps of 1.2 mm pass; corners alone do not trip it", () => {
+  const r = reliefOf(plaque(1.2, 1.2));
+  assert.equal(r.status, "pass");
+  assert.ok(r.data.thinMm2 < 0.5 && r.data.gapMm2 < 0.5);
+});
+
+test("relief detail: tall parts are not treated as relief", () => {
+  assert.equal(reliefOf(makePassingExampleStl()), undefined);
+});

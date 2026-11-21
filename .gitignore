@@ -5,6 +5,9 @@ node_modules/
 .impeccable/
 *.stl
 *.STL
+!models/fidgets/*.stl
+!models/fidgets/*.STL
 *.3mf
 *.3MF
 tests/private-fixtures.json
+
