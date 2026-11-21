@@ -9,6 +9,7 @@ import { timeStatus, findScaleCandidate } from "./time-policy.js";
 import { PRINTERS } from "./printers.js";
 import { formatMinutes } from "./format.js";
 import { lowerFloating } from "./fix.js";
+import { analyzePrintTraits } from "./preset.js";
 
 // Plain-language reasons why no smaller size can be offered, from findScaleCandidate's trace.
 function noScaleReason(trace, limit) {
@@ -96,7 +97,7 @@ self.onmessage = (ev) => {
       const brokenAtAnySize = chk.results.some((r) => r.status === "fail" && r.id !== "fit");
       const trace = [];
       const candidate = brokenAtAnySize ? null : findScaleCandidate({ mesh: chk.mesh, size: chk.size, printers: Object.values(PRINTERS), limit: maxMinutes, estimate, trace,
-        check: (scale, profile) => runChecks(Float32Array.from(pos, n => n * scale), profile) });
+        check: (scale, profile) => runChecks(Float32Array.from(pos, n => n * scale), profile, undefined, { relief: false }) });
       const scaleFix = candidate
         ? `One starting point is ${candidate.percent}% of the original size (${candidate.size.map(n => n.toFixed(1)).join(" × ")} mm), estimated at ${formatMinutes(candidate.minutes)} on ${candidate.printer}. Check that holes, text and the overall size will still be useful. Scale uniformly in Tinkercad, export the new STL and check it again. The teacher must confirm the final print time.`
         : "Try reducing the height, simplifying the model or asking your teacher for help. Check that the final size and details remain useful, then export and check the new STL.";
@@ -141,6 +142,7 @@ self.onmessage = (ev) => {
     }
 
     const fixedStl = applied.length ? writeBinaryStl(placedPos) : null; // placed: centred, on the bed
+    const traits = analyzePrintTraits(chk.mesh, chk.size, chk.results, estimates[0]?.slice, printer);
     const elapsedMs = Math.round(performance.now() - t0);
     self.postMessage({
       type: "done",
@@ -148,6 +150,7 @@ self.onmessage = (ev) => {
       maxMinutes,
       verdict,
       estimates,
+      traits,
       size: chk.size,
       triangleCount: nT,
       partCount: chk.comps ? chk.comps.length : 1,

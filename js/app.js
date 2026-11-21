@@ -3,9 +3,13 @@
 import { PRINTERS } from "./printers.js";
 import { StlViewer, GROUP_COLORS } from "./viewer.js";
 import { makePassingExampleStl, makeFloatingExampleStl, makeTooSlowExampleStl } from "./samples.js";
-import { formatMinutes } from "./format.js";
+import { formatMinutes, calculateCoins } from "./format.js";
 import { questionFor, compareChecks } from "./learning.js";
 import { fixAccepted, badIds } from "./fix.js";
+import { generateOrcaPreset } from "./preset.js";
+import { buildPauseProject } from "./threemf.js";
+import { parseStl } from "./stl.js";
+import { STORE_FIDGETS } from "./store-catalog.js";
 
 const params = new URLSearchParams(window.location.search);
 const maxMinutes = Math.max(1, Math.min(600, Number(params.get("max")) || 30));
@@ -46,10 +50,18 @@ const legendModelLabel = document.getElementById("legend-model-label");
 const legendHighlightAction = document.getElementById("legend-highlight-action");
 const legendHighlightLabel = document.getElementById("legend-highlight-label");
 
+// View switcher elements
+const tabCheck = document.getElementById("tab-check");
+const tabStore = document.getElementById("tab-store");
+const checkPane = document.getElementById("check-pane");
+const storePane = document.getElementById("store-pane");
+const storeGrid = document.getElementById("store-grid");
+
 const viewer = new StlViewer(canvas);
 
-// Configure class time limit.
-maxBadge.textContent = `${maxMinutes} min max, PLA, single color`;
+// Configure class time limit and base coin ticket
+const defaultCoins = calculateCoins(0, maxMinutes).coins;
+maxBadge.textContent = `${maxMinutes} min max (🪙 ${defaultCoins} coins), PLA, single color`;
 document.getElementById("max-mb").textContent = MAX_FILE_MB;
 document.getElementById("sample-slow").textContent = `Over ${maxMinutes}-Min Limit`;
 viewer.setBed(PRINTERS.p1s.bed);
@@ -82,6 +94,97 @@ document.getElementById("sample-float").addEventListener("click", () => {
 document.getElementById("sample-slow").addEventListener("click", () => {
   loadBuffer(makeTooSlowExampleStl(), "Tinkercad_Huge_Block.stl");
 });
+
+// View switcher (Check My Design vs Fidget Store)
+let storeRendered = false;
+let activeStoreCard = null;
+
+function switchView(view) {
+  const isStore = view === "store";
+  tabCheck?.classList.toggle("active", !isStore);
+  tabStore?.classList.toggle("active", isStore);
+  if (checkPane) checkPane.hidden = isStore;
+  if (storePane) storePane.hidden = !isStore;
+  if (isStore) {
+    renderStore();
+    if (window.location.hash !== "#store") {
+      history.replaceState(null, "", "#store");
+    }
+  } else {
+    if (window.location.hash === "#store") {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }
+}
+
+tabCheck?.addEventListener("click", () => switchView("check"));
+tabStore?.addEventListener("click", () => switchView("store"));
+window.addEventListener("hashchange", () => {
+  switchView(window.location.hash === "#store" ? "store" : "check");
+});
+if (window.location.hash === "#store") {
+  switchView("store");
+}
+
+function renderStore() {
+  if (storeRendered || !storeGrid) return;
+  storeRendered = true;
+  storeGrid.innerHTML = "";
+
+  for (const item of STORE_FIDGETS) {
+    const card = document.createElement("article");
+    card.className = "fidget-card";
+    card.id = `fidget-card-${item.id}`;
+
+    const tagsHtml = item.tags.map((t) => `<span class="fidget-tag">${escapeHtml(t)}</span>`).join("");
+    const dimsText = `${item.dimensionsMm[0]} × ${item.dimensionsMm[1]} × ${item.dimensionsMm[2]} mm`;
+
+    card.innerHTML = `
+      <div class="fidget-header">
+        <div class="fidget-title-group">
+          <h3>${escapeHtml(item.name)}</h3>
+          <div class="fidget-tags">${tagsHtml}</div>
+        </div>
+        <div class="fidget-cost-badge">🪙 ${item.coins} Coins</div>
+      </div>
+      <p class="fidget-desc">${escapeHtml(item.description)}</p>
+      <div class="fidget-meta">
+        <span>⏱️ ~${item.timeMinutes} min</span>
+        <span>📐 ${dimsText}</span>
+        <span>✨ ${escapeHtml(item.highlights)}</span>
+      </div>
+      <div class="fidget-actions">
+        <button type="button" class="btn-inspect" data-id="${item.id}">👁️ Inspect in 3D</button>
+        <a href="${item.stlPath}" download="${item.id}.stl" class="btn-download-stl">📥 Download STL</a>
+      </div>
+    `;
+
+    const inspectBtn = card.querySelector(".btn-inspect");
+    inspectBtn.addEventListener("click", async () => {
+      if (activeStoreCard) activeStoreCard.classList.remove("active-preview");
+      card.classList.add("active-preview");
+      activeStoreCard = card;
+
+      inspectBtn.disabled = true;
+      inspectBtn.textContent = "Loading 3D...";
+      try {
+        const resp = await fetch(item.stlPath);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        switchView("check"); // verdict and errors live in the check pane, hidden in the store view
+        loadBuffer(buf, `${item.name}.stl`);
+      } catch (err) {
+        switchView("check");
+        showError(`Could not load ${item.name}: ${err.message}`);
+      } finally {
+        inspectBtn.disabled = false;
+        inspectBtn.textContent = "👁️ Inspect in 3D";
+      }
+    });
+
+    storeGrid.appendChild(card);
+  }
+}
 
 resetCamBtn.addEventListener("click", () => {
   if (lastReport?.size) viewer.fitCamera(lastReport.size);
@@ -266,13 +369,16 @@ function renderReport(rep, previous) {
   // Within a minute the two printers are effectively the same, so show one time.
   const noneFit = !fittingEstimates.length;
   const timeText = noneFit ? "Too large to print" : maxEstimate - minMinutes <= 1 ? `about ${maxDisplay}` : `${minDisplay} to ${maxDisplay}`;
+  const coinsInfo = calculateCoins(minMinutes, rep.maxMinutes || maxMinutes);
+  const costText = noneFit ? "n/a" : `🪙 ${coinsInfo.label}`;
   // Collapsed by default so the 3D view gets the room; a fresh report rebuilds it closed.
   statsBar.innerHTML = `
-    <summary><span>File details</span><span class="stats-peek">${escapeHtml(rep.fileName)}, ${timeText}</span></summary>
+    <summary><span>File details</span><span class="stats-peek">${escapeHtml(rep.fileName)}, ${timeText} (${costText})</span></summary>
     <div class="stats-grid">
     <div class="stat-file"><span class="stat-label">File</span><strong>${escapeHtml(rep.fileName)}</strong></div>
     <div><span class="stat-label">Dimensions</span><strong>${sx.toFixed(0)} × ${sy.toFixed(0)} × ${sz.toFixed(0)} mm</strong></div>
     <div><span class="stat-label">${fittingEstimates.length ? "Estimated Time (printers that fit)" : "Estimated Time"}</span><strong>${timeText}</strong></div>
+    <div><span class="stat-label">Print Cost</span><strong>${costText}</strong></div>
     <div><span class="stat-label">PLA</span><strong>${noneFit ? "n/a" : `~${Math.max(1, Math.round(rangeEstimates[0].slice.filamentG))} g`}</strong></div>
     </div>
   `;
@@ -314,6 +420,56 @@ function renderReport(rep, previous) {
   if (questions.length) {
     verdictCard.insertAdjacentHTML("beforeend", `<p class="learning-progress" role="status" aria-live="polite"></p>`);
     updateLearningProgress(new Set(), questions.length, rep.verdict);
+  }
+
+  if (rep.traits) {
+    const t = rep.traits;
+    const presetObj = generateOrcaPreset(rep.fileName ? rep.fileName.replace(/\.stl$/i, "") : "Model", "ad5m", t);
+    const presetDataUri = "data:application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(presetObj, null, 2));
+    const presetFileName = (rep.fileName ? rep.fileName.replace(/\.stl$/i, "") : "model") + ".orca.json";
+
+    verdictCard.insertAdjacentHTML("beforeend", `
+      <div class="preset-recommendations">
+        <h4 class="preset-title preset-title-caps">⚙️ Recommended Slicer Settings</h4>
+        <ul class="preset-list">
+          <li><strong>Layer Height:</strong> ${t.recommendedLayerHeight} mm ${t.isRelief ? "(fine vertical relief detected)" : "(standard)"}</li>
+          <li><strong>Wall Generator:</strong> ${t.wallGenerator === "arachne" ? "<strong>Arachne</strong> (preserves text & contours down to one nozzle line)" : "Classic"}</li>
+          ${t.reliefTooFine ? `<li><strong>Raised text:</strong> finer than the nozzle. No slicer setting fixes this; enlarge or embolden it (see the checks below).</li>` : ""}
+          <li><strong>Supports & Brim:</strong> ${t.needsSupport ? "Supports enabled" : "0 supports, no brim (flat bed adhesion)"}</li>
+          ${(t.colorChanges ?? []).map((c, i) => `<li><strong>Layer Pause:</strong> before layer ${c.layerIdx} (Z = ${c.layerTopMm} mm @ ${t.recommendedLayerHeight} mm layers; ${i ? "upper tier" : "relief"} starts at ${c.zMm} mm) — ${c.dropPct}% area transition for 2-color filament swap</li>`).join("")}
+        </ul>
+        <a class="btn-tool preset-btn" href="${presetDataUri}" download="${escapeHtml(presetFileName)}">
+          📥 Download OrcaSlicer Preset (.json)
+        </a>
+        ${t.colorChanges?.length ? `
+        <div class="two-color">
+          <h4 class="preset-title">🎨 Two-color print, one extruder</h4>
+          <p class="preset-note">The preset above can't hold a pause, so a pause added by hand is easy to lose. This project file already has it: in OrcaSlicer use <strong>File &gt; Open Project</strong> (not Import), keep the Flashforge AD5M printer, slice, and the printer stops at the pause so you can swap filament. Check the slider shows the orange pause marker before you print.</p>
+          <label class="preset-note two-color-label">Other parts for the same plate (optional, e.g. the other side of a two-sided model):
+            <input type="file" class="two-color-extra" accept=".stl" multiple>
+          </label>
+          <div class="two-color-buttons">${t.colorChanges.map((c, i) => `<button type="button" class="btn-tool two-color-dl preset-btn" data-z="${c.layerTopMm}">📥 Project (.3mf): pause before layer ${c.layerIdx} (Z ${c.layerTopMm} mm), ${i === t.colorChanges.length - 1 && i > 0 ? "colors only the tallest items" : i ? "colors the next tier up" : "colors everything raised"}</button>`).join("")}</div>
+        </div>` : ""}
+      </div>
+    `);
+    const box = verdictCard.querySelector(".two-color");
+    box?.querySelectorAll(".two-color-dl").forEach((btn) => btn.addEventListener("click", async () => {
+      const base = (rep.fileName || "model").replace(/\.stl$/i, "");
+      try {
+        const parts = [{ name: base, pos: parseStl(currentBuffer) }];
+        for (const f of box.querySelector(".two-color-extra").files) parts.push({ name: f.name.replace(/\.stl$/i, ""), pos: parseStl(await f.arrayBuffer()) });
+        // Project settings make Orca's GUI keep the pause (without them it loads geometry only).
+        const projectSettings = await (await fetch(new URL("./orca-project-ad5m.json", import.meta.url))).json();
+        const bytes = buildPauseProject(parts, { pauseZ: [Number(btn.dataset.z)], layerHeight: t.recommendedLayerHeight, bed: PRINTERS.ad5m.bed, projectSettings });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([bytes], { type: "model/3mf" }));
+        a.download = `${base}-2color-z${btn.dataset.z}.3mf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } catch (e) {
+        showError(`Couldn't build the project file: ${e.message}`);
+      }
+    }));
   }
 
   const changes = compareChecks(previous, rep);
@@ -471,10 +627,11 @@ function renderEstimateList(estimates, limit) {
   return `<div class="time-breakdown">${estimates.map(({ printer, slice, fits }) => {
     if (slice.skipped) return `<span><strong>${escapeHtml(printer.name)}:</strong> too large to print</span>`;
     const time = formatMinutes(slice.minutes);
+    const printerCoins = calculateCoins(slice.minutes, limit);
     const fitLabel = fits ? "fits" : "too large";
     const limitText = formatMinutes(limit);
     const limitLabel = slice.minutes <= limit ? `within ${limitText} limit` : `over ${limitText} limit`;
-    return `<span><strong>${escapeHtml(printer.name)}:</strong> ${time}, ${fitLabel}, ${limitLabel}</span>`;
+    return `<span><strong>${escapeHtml(printer.name)}:</strong> ${time} (🪙 ${printerCoins.label}), ${fitLabel}, ${limitLabel}</span>`;
   }).join("")}</div>`;
 }
 
@@ -483,7 +640,8 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // "More results below" cue: shown while the sidebar has content out of view.
