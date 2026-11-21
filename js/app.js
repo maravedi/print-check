@@ -171,8 +171,10 @@ function renderStore() {
         const resp = await fetch(item.stlPath);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const buf = await resp.arrayBuffer();
+        switchView("check"); // verdict and errors live in the check pane, hidden in the store view
         loadBuffer(buf, `${item.name}.stl`);
       } catch (err) {
+        switchView("check");
         showError(`Could not load ${item.name}: ${err.message}`);
       } finally {
         inspectBtn.disabled = false;
@@ -436,7 +438,7 @@ function renderReport(rep, previous) {
           <li><strong>Supports & Brim:</strong> ${t.needsSupport ? "Supports enabled" : "0 supports, no brim (flat bed adhesion)"}</li>
           ${(t.colorChanges ?? []).map((c, i) => `<li><strong>Layer Pause:</strong> before layer ${c.layerIdx} (Z = ${c.layerTopMm} mm @ ${t.recommendedLayerHeight} mm layers; ${i ? "upper tier" : "relief"} starts at ${c.zMm} mm) — ${c.dropPct}% area transition for 2-color filament swap</li>`).join("")}
         </ul>
-        <a class="btn-tool preset-btn" href="${presetDataUri}" download="${presetFileName}">
+        <a class="btn-tool preset-btn" href="${presetDataUri}" download="${escapeHtml(presetFileName)}">
           📥 Download OrcaSlicer Preset (.json)
         </a>
         ${t.colorChanges?.length ? `
@@ -638,7 +640,8 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // "More results below" cue: shown while the sidebar has content out of view.

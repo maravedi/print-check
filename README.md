@@ -37,7 +37,7 @@ Learning questions appear alongside applicable findings. Students can request a 
 
 ## Deploying to GitHub Pages
 
-The site has no build step. `.github/workflows/pages.yml` copies only `index.html`, `styles.css`, `js/`, `fonts/` and `LICENSE` to Pages, so `tests/` and `tools/` are not published.
+The site has no build step. `.github/workflows/pages.yml` copies only `index.html`, `styles.css`, `js/`, `fonts/`, `models/` (tracked files only: the store fidgets) and `LICENSE` to Pages, so `tests/` and `tools/` are not published.
 
 1. Create the GitHub repository and push this folder to `main`.
 2. In the repository, open Settings, then Pages, and set Source to **GitHub Actions**.
